@@ -8,6 +8,7 @@ import java.io.*;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Scanner;
 
 public class StoreableUtils {
     public static List<Object> parseValues(List<String> valuesTypeNames, Table table) throws ColumnFormatException {
@@ -129,8 +130,11 @@ public class StoreableUtils {
         }
 
         signatureFile.createNewFile();
-        RandomAccessFile writer = new RandomAccessFile(signatureFile.getAbsolutePath(), "rw");
-        writer.writeInt(size);
+
+        //RandomAccessFile writer = new RandomAccessFile(signatureFile.getAbsolutePath(), "rw");
+        PrintWriter writer = new PrintWriter(signatureFile);
+        writer.write(Integer.toString(size));
+        //writer.writeInt(size);
         writer.close();
     }
 
@@ -139,9 +143,13 @@ public class StoreableUtils {
             return -1;
         }
 
-        ReadHandler readHandler = new ReadHandler(signatureFile.getAbsolutePath());
-        int tableSize = readHandler.readInteger();
-        readHandler.close();
+        int tableSize = 0;
+
+        Scanner scanner = new Scanner(signatureFile);
+        if (scanner.hasNextInt()) {
+            tableSize = scanner.nextInt();
+        }
+        scanner.close();
 
         return tableSize;
     }
