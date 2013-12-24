@@ -98,7 +98,8 @@ public class DatabaseTableProvider implements TableProvider, AutoCloseable {
             File sizeSignatureFile = new File(table.getTableDir(), DatabaseTableProvider.SIZE_SIGNATURE_FILE_NAME);
             if (!sizeSignatureFile.exists()) {
                 try {
-                    int recordsNumber = ReadHandler.getRecordsNumberFromFile(sizeSignatureFile.getAbsolutePath());
+                    int recordsNumber = StoreableUtils.countRecords(table.getTableDir());
+                    table.size = recordsNumber;
                     StoreableUtils.writeSizeSignature(sizeSignatureFile, table.tableSize());
                 } catch (IOException e) {
                     throw new IllegalStateException("error: can't write size signature file");

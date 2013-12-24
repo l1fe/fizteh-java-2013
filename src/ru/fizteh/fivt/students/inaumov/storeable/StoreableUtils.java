@@ -145,4 +145,23 @@ public class StoreableUtils {
 
         return tableSize;
     }
+
+    public static int countRecords(String tableDirString) throws IOException {
+        File tableDir = new File(tableDirString);
+        if (!tableDir.exists()) {
+            return 0;
+        }
+
+        int recordsNum = 0;
+
+        for (final File bucket : tableDir.listFiles()) {
+            if (bucket.isDirectory()) {
+                for (final File file : bucket.listFiles()) {
+                    recordsNum += ReadHandler.getRecordsNumberFromFile(file.getAbsolutePath());
+                }
+            }
+        }
+
+        return recordsNum;
+    }
 }
