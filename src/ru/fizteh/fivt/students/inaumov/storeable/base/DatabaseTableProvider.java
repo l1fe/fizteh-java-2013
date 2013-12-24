@@ -96,7 +96,7 @@ public class DatabaseTableProvider implements TableProvider, AutoCloseable {
             }
 
             File sizeSignatureFile = new File(table.getTableDir(), DatabaseTableProvider.SIZE_SIGNATURE_FILE_NAME);
-            if (!sizeSignatureFile.exists()) {
+            if (!sizeSignatureFile.exists() || sizeSignatureFile.length() == 0) {
                 try {
                     int recordsNumber = StoreableUtils.countRecords(table.getTableDir());
                     table.size = recordsNumber;
