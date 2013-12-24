@@ -40,13 +40,14 @@ public class StoreableTableBuilder implements TableBuilder {
         MultiFileMapUtils.checkKeyPlacement(key, currentBucket, currentFile);
 
         Storeable objectValue = null;
+
         try {
             objectValue = tableProvider.deserialize(table, value);
         } catch (ParseException e) {
             System.err.println(e.getMessage());
         }
 
-        table.put(key, objectValue);
+        table.rawPut(key, objectValue);
     }
 
     @Override

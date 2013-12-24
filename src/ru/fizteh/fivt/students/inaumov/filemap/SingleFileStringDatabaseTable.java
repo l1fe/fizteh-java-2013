@@ -18,6 +18,10 @@ public class SingleFileStringDatabaseTable extends StringDatabaseTable {
         ReadHandler.loadFromFile(getDatabaseFilePath(), new SimpleTableBuilder(this));
     }
 
+    protected void loadTableLazy(String key) throws IOException {
+        //empty
+    }
+
     protected void saveTable() throws IOException {
         WriteHandler.saveToFile(getDatabaseFilePath(), keyValueHashMap.keySet(), new SimpleTableBuilder(this));
     }

@@ -1,6 +1,7 @@
 package ru.fizteh.fivt.students.inaumov.multifilemap.handlers;
 
 import ru.fizteh.fivt.students.inaumov.filemap.builders.TableBuilder;
+import ru.fizteh.fivt.students.inaumov.filemap.handlers.ReadHandler;
 import ru.fizteh.fivt.students.inaumov.filemap.handlers.WriteHandler;
 import ru.fizteh.fivt.students.inaumov.multifilemap.MultiFileMapUtils;
 
@@ -37,6 +38,18 @@ public class SaveHandler {
             String bucketName = bucketNumber + ".dir";
             File bucketDirectory = new File(tableDir, bucketName);
 
+            if (bucketDirectory.exists()) {
+                for (final File fileEntry : bucketDirectory.listFiles()) {
+                    if (fileEntry.isDirectory()) {
+                        continue;
+                    }
+                    if (fileEntry.length() > 0) {
+                        bucketIsEmpty = false;
+                        break;
+                    }
+                }
+            }
+
             if (bucketIsEmpty) {
                 MultiFileMapUtils.deleteFile(bucketDirectory);
             }
@@ -45,7 +58,7 @@ public class SaveHandler {
                 String fileName = fileN + ".dat";
                 File file = new File(bucketDirectory, fileName);
 
-                if (keysToSave.get(fileN).isEmpty()) {
+                if (keysToSave.get(fileN).isEmpty() && (!file.exists() || file.length() == 0)) {
                     MultiFileMapUtils.deleteFile(file);
                     continue;
                 }
@@ -54,7 +67,9 @@ public class SaveHandler {
                     bucketDirectory.mkdir();
                 }
 
-                WriteHandler.saveToFile(file.getAbsolutePath(), keysToSave.get(fileN), builder);
+                if (!keysToSave.get(fileN).isEmpty()) {
+                    WriteHandler.saveToFile(file.getAbsolutePath(), keysToSave.get(fileN), builder);
+                }
             }
         }
     }

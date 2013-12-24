@@ -1,10 +1,12 @@
 package ru.fizteh.fivt.students.inaumov.filemap.base;
 
 import ru.fizteh.fivt.students.inaumov.filemap.FileMapUtils;
+
 import java.io.IOException;
-import java.util.HashMap;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.WeakHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -13,27 +15,54 @@ import static ru.fizteh.fivt.students.inaumov.filemap.FileMapUtils.isEqual;
 public abstract class AbstractDatabaseTable<Key, Value> implements AutoCloseable {
     public static final Charset CHARSET = StandardCharsets.UTF_8;
     public final Lock transactionLock = new ReentrantLock(true);
-    public HashMap<Key, Value> keyValueHashMap = new HashMap<Key, Value>();
+    public WeakHashMap<Key, Value> keyValueHashMap = new WeakHashMap<Key, Value>();
 
-    private class Diff {
-        private HashMap<Key, Value> modifiedKeyValueHashMap = new HashMap<Key, Value>();
-        private int size = 0;
+    public int size = 0;
+
+    private class LazyHashMap {
+        private HashMap<Key, Value> keyValueModifiedWeakHashMap = new HashMap<Key, Value>();
+
+        Value lazyGet(Key key) throws IOException {
+            if (keyValueModifiedWeakHashMap.containsKey(key)) {
+                return keyValueModifiedWeakHashMap.get(key);
+            }
+
+            if (keyValueHashMap.containsKey(key)) {
+                return keyValueHashMap.get(key);
+            }
+
+            loadTableLazy(key);
+
+            return keyValueHashMap.get(key);
+        }
+
+        HashMap<Key,Value> getTable() {
+            return keyValueModifiedWeakHashMap;
+        }
+    }
+
+    protected class Diff {
+        private LazyHashMap lazyHashMap = new LazyHashMap();
+
         private int unsavedChangesNumber = 0;
 
         public void change(Key key, Value value) {
-            modifiedKeyValueHashMap.put(key, value);
+            lazyHashMap.getTable().put(key, value);
         }
 
-        public int commitChanges() {
+        public int commitChanges() throws IOException {
             int recordsChangedCount = 0;
-            for (final Key key: modifiedKeyValueHashMap.keySet()) {
-                Value newValue = modifiedKeyValueHashMap.get(key);
+
+            for (final Key key: lazyHashMap.getTable().keySet()) {
+                Value newValue = lazyHashMap.lazyGet(key);
+
                 if (!isEqual(keyValueHashMap.get(key), newValue)) {
                     if (newValue == null) {
                         keyValueHashMap.remove(key);
                     } else {
                         keyValueHashMap.put(key, (Value) newValue);
                     }
+
                     recordsChangedCount += 1;
                 }
             }
@@ -41,10 +70,11 @@ public abstract class AbstractDatabaseTable<Key, Value> implements AutoCloseable
             return recordsChangedCount;
         }
 
-        public int getChangesCount() {
+        public int getChangesCount() throws IOException {
             int recordsChangedCount = 0;
-            for (final Key key: modifiedKeyValueHashMap.keySet()) {
-                Value newValue = modifiedKeyValueHashMap.get(key);
+
+            for (final Key key: lazyHashMap.getTable().keySet()) {
+                Value newValue = lazyHashMap.lazyGet(key);
                 if (!isEqual(keyValueHashMap.get(key), newValue)) {
                     recordsChangedCount += 1;
                 }
@@ -53,10 +83,11 @@ public abstract class AbstractDatabaseTable<Key, Value> implements AutoCloseable
             return recordsChangedCount;
         }
 
-        public int calcSize() {
+        public int calcSize() throws IOException {
             int tableSize = 0;
-            for (final Key key: modifiedKeyValueHashMap.keySet()) {
-                Value newValue = modifiedKeyValueHashMap.get(key);
+
+            for (final Key key: lazyHashMap.getTable().keySet()) {
+                Value newValue = lazyHashMap.lazyGet(key);
                 Value oldValue = keyValueHashMap.get(key);
                 if (newValue == null && oldValue != null) {
                     tableSize -= 1;
@@ -69,16 +100,12 @@ public abstract class AbstractDatabaseTable<Key, Value> implements AutoCloseable
             return tableSize;
         }
 
-        public Value getValue(Key key) {
-            if (modifiedKeyValueHashMap.containsKey(key)) {
-                return modifiedKeyValueHashMap.get(key);
-            }
-
-            return keyValueHashMap.get(key);
+        public Value getValue(Key key) throws IOException {
+            return lazyHashMap.lazyGet(key);
         }
 
-        public int getSize() {
-            return calcSize() + keyValueHashMap.size();
+        public int getSize() throws IOException {
+            return calcSize();
         }
 
         public void incUnsavedChangesNumber() {
@@ -90,8 +117,7 @@ public abstract class AbstractDatabaseTable<Key, Value> implements AutoCloseable
         }
 
         public void clear() {
-            modifiedKeyValueHashMap.clear();
-            size = 0;
+            lazyHashMap.getTable().clear();
             unsavedChangesNumber = 0;
         }
     }
@@ -110,6 +136,8 @@ public abstract class AbstractDatabaseTable<Key, Value> implements AutoCloseable
     protected abstract void loadTable() throws IOException;
 
     protected abstract void saveTable() throws IOException;
+
+    protected abstract void loadTableLazy(Key key) throws IOException;
 
     public AbstractDatabaseTable(String tableDir, String tableName) {
         if (FileMapUtils.isStringNullOrEmpty(tableDir)) {
@@ -142,7 +170,7 @@ public abstract class AbstractDatabaseTable<Key, Value> implements AutoCloseable
         return tableDir;
     }
 
-    public Value tableGet(Key key) {
+    public Value tableGet(Key key) throws IOException {
         tableState.checkAvailable();
 
         if (key == null) {
@@ -151,7 +179,6 @@ public abstract class AbstractDatabaseTable<Key, Value> implements AutoCloseable
 
         try {
             transactionLock.lock();
-
             return diff.get().getValue(key);
         } finally {
             transactionLock.unlock();
@@ -159,7 +186,7 @@ public abstract class AbstractDatabaseTable<Key, Value> implements AutoCloseable
 
     }
 
-    public Value tablePut(Key key, Value value) {
+    public Value tablePut(Key key, Value value) throws IOException {
         tableState.checkAvailable();
 
         if (key == null) {
@@ -172,6 +199,7 @@ public abstract class AbstractDatabaseTable<Key, Value> implements AutoCloseable
         try {
             transactionLock.lock();
             Value oldValue = diff.get().getValue(key);
+
             diff.get().change(key, value);
             if (!isEqual(value, oldValue)) {
                 diff.get().incUnsavedChangesNumber();
@@ -183,7 +211,7 @@ public abstract class AbstractDatabaseTable<Key, Value> implements AutoCloseable
         }
     }
 
-    public Value tableRemove(Key key) throws IllegalArgumentException {
+    public Value tableRemove(Key key) throws IOException {
         tableState.checkAvailable();
 
         if (key == null) {
@@ -205,12 +233,13 @@ public abstract class AbstractDatabaseTable<Key, Value> implements AutoCloseable
         }
     }
 
-    public int tableCommit() {
+    public int tableCommit() throws IOException {
         tableState.checkAvailable();
 
         try {
             transactionLock.lock();
-            int commitedChangesNumber = diff.get().commitChanges();
+            size += diff.get().getSize();
+            int committedChangesNumber = diff.get().commitChanges();
             diff.get().clear();
 
             try {
@@ -219,13 +248,13 @@ public abstract class AbstractDatabaseTable<Key, Value> implements AutoCloseable
                 System.err.println("error: can't save table: " + e.getMessage());
             }
 
-            return commitedChangesNumber;
+            return committedChangesNumber;
         } finally {
             transactionLock.unlock();
         }
     }
 
-    public int tableRollback() {
+    public int tableRollback() throws IOException {
         tableState.checkAvailable();
 
         int rollbackedChangesCount = diff.get().getChangesCount();
@@ -234,10 +263,10 @@ public abstract class AbstractDatabaseTable<Key, Value> implements AutoCloseable
         return rollbackedChangesCount;
     }
 
-    public int tableSize() {
+    public int tableSize() throws IOException {
         tableState.checkAvailable();
 
-        return diff.get().getSize();
+        return size + diff.get().getSize();
     }
 
     public int getUnsavedChangesNumber() {

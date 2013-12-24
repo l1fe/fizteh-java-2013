@@ -4,6 +4,8 @@ import ru.fizteh.fivt.storage.structured.ColumnFormatException;
 import ru.fizteh.fivt.storage.structured.Storeable;
 import ru.fizteh.fivt.storage.structured.Table;
 import ru.fizteh.fivt.students.inaumov.filemap.base.AbstractDatabaseTable;
+import ru.fizteh.fivt.students.inaumov.filemap.handlers.ReadHandler;
+import ru.fizteh.fivt.students.inaumov.multifilemap.MultiFileMapUtils;
 import ru.fizteh.fivt.students.inaumov.multifilemap.handlers.LoadHandler;
 import ru.fizteh.fivt.students.inaumov.multifilemap.handlers.SaveHandler;
 import ru.fizteh.fivt.students.inaumov.storeable.StoreableUtils;
@@ -16,6 +18,7 @@ import java.util.List;
 import java.util.Set;
 
 import static ru.fizteh.fivt.students.inaumov.storeable.StoreableUtils.isStringIncorrect;
+import static ru.fizteh.fivt.students.inaumov.storeable.StoreableUtils.writeSizeSignature;
 
 public class DatabaseTable extends AbstractDatabaseTable<String, Storeable> implements Table {
     private DatabaseTableProvider tableProvider;
@@ -63,32 +66,70 @@ public class DatabaseTable extends AbstractDatabaseTable<String, Storeable> impl
 
         checkCorrectStoreable(value);
 
-        return tablePut(key, value);
+        Storeable oldValue;
+        try {
+            oldValue = tablePut(key, value);
+        } catch (IOException e) {
+            throw new IllegalStateException("error: reading file error");
+        }
+
+        return oldValue;
     }
 
     @Override
     public Storeable get(String key) {
-        return tableGet(key);
+        Storeable value;
+        try {
+            value = tableGet(key);
+        } catch (IOException e) {
+            throw new IllegalStateException("error: reading file error");
+        }
+
+        return value;
     }
 
     @Override
     public Storeable remove(String key) {
-        return tableRemove(key);
+        Storeable value;
+        try {
+            value = tableRemove(key);
+        } catch (IOException e) {
+            throw new IllegalStateException("error: reading file error");
+        }
+
+        return value;
     }
 
     @Override
     public int size() {
-        return tableSize();
+        int tableSize;
+        try {
+            tableSize = tableSize();
+        } catch (IOException e) {
+            throw new IllegalStateException("error: reading file error");
+        }
+
+        return tableSize;
     }
 
     @Override
     public int commit() throws IOException {
-        return tableCommit();
+        int committedChangesNumber = tableCommit();
+        writeSizeSignatureFile(tableSize());
+
+        return committedChangesNumber;
     }
 
     @Override
     public int rollback() {
-        return tableRollback();
+        int uncommittedChangesNumber;
+        try {
+            uncommittedChangesNumber = tableRollback();
+        } catch (IOException e) {
+            throw new IllegalStateException("error: reading file error");
+        }
+
+        return uncommittedChangesNumber;
     }
 
     @Override
@@ -115,7 +156,31 @@ public class DatabaseTable extends AbstractDatabaseTable<String, Storeable> impl
             return;
         }
 
-        LoadHandler.loadTable(new StoreableTableBuilder(tableProvider, this));
+        //LoadHandler.loadTable(new StoreableTableBuilder(tableProvider, this));
+    }
+
+    @Override
+    protected void loadTableLazy(String key) throws IOException {
+        String tableDir = getTableDir();
+        Integer dirNumber = MultiFileMapUtils.getDirNumber(key);
+        Integer fileNumber = MultiFileMapUtils.getFileNumber(key);
+
+        File bucket = new File(tableDir, dirNumber.toString() + ".dir");
+        File file = new File(bucket, fileNumber.toString() + ".dat");
+
+        if (!file.exists()) {
+            return;
+        }
+
+        int currentBucketNumber = MultiFileMapUtils.parseCurrentBucketNumber(bucket);
+        int currentFileNumber = MultiFileMapUtils.parseCurrentFileNumber(file);
+        if (dirNumber != currentBucketNumber || fileNumber != currentFileNumber) {
+            throw new IllegalArgumentException("error: illegal key placement");
+        }
+
+        StoreableTableBuilder builder = new StoreableTableBuilder(tableProvider, this);
+        builder.setCurrentFile(file);
+        ReadHandler.loadFromFile(file.getAbsolutePath(), builder);
     }
 
     @Override
@@ -127,7 +192,7 @@ public class DatabaseTable extends AbstractDatabaseTable<String, Storeable> impl
         File tableDirectory = new File(getDir(), getName());
         if (!tableDirectory.exists()) {
             tableDirectory.mkdir();
-            writeSignatureFile();
+            writeTypesSignatureFile();
         } else {
             File[] children = tableDirectory.listFiles();
             if (children == null || children.length == 0) {
@@ -137,10 +202,16 @@ public class DatabaseTable extends AbstractDatabaseTable<String, Storeable> impl
         }
     }
 
-    private void writeSignatureFile() throws IOException {
+    private void writeSizeSignatureFile(int size) throws IOException {
         File tableDir = new File(getDir(), getName());
-        File signatureFile = new File(tableDir, DatabaseTableProvider.SIGNATURE_FILE);
-        StoreableUtils.writeSignature(signatureFile, columnTypes);
+        File signatureFile = new File(tableDir, DatabaseTableProvider.SIZE_SIGNATURE_FILE_NAME);
+        StoreableUtils.writeSizeSignature(signatureFile, size);
+    }
+
+    private void writeTypesSignatureFile() throws IOException {
+        File tableDir = new File(getDir(), getName());
+        File signatureFile = new File(tableDir, DatabaseTableProvider.TYPES_SIGNATURE_FILE_NAME);
+        StoreableUtils.writeTypesSignature(signatureFile, columnTypes);
     }
 
     public boolean checkAlienStoreable(Storeable storeable) {

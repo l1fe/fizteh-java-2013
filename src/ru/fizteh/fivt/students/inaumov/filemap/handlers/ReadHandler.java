@@ -2,6 +2,7 @@ package ru.fizteh.fivt.students.inaumov.filemap.handlers;
 
 import java.io.*;
 
+import ru.fizteh.fivt.storage.structured.Table;
 import ru.fizteh.fivt.students.inaumov.filemap.base.AbstractDatabaseTable;
 import ru.fizteh.fivt.students.inaumov.filemap.builders.TableBuilder;
 
@@ -36,19 +37,44 @@ public class ReadHandler implements Closeable {
 
             String key = reader.readString(keyLength);
             String value = reader.readString(valueLength);
-            //System.out.println("loading from file: key: " + key + ",value: " + value);
+
             builder.put(key, value);
         }
 
         reader.close();
     }
 
-    private int readInteger() throws IOException {
+    public static int getRecordsNumberFromFile(String filePath) throws IOException {
+        int recordsNumber = 0;
+
+        File file = new File(filePath);
+        if (!file.exists()) {
+            return recordsNumber;
+        }
+
+        ReadHandler reader = new ReadHandler(filePath);
+
+        while (!reader.readEnd()) {
+            int keyLength = reader.readInteger();
+            int valueLength = reader.readInteger();
+
+            String key = reader.readString(keyLength);
+            String value = reader.readString(valueLength);
+
+            recordsNumber += 1;
+        }
+
+        reader.close();
+
+        return recordsNumber;
+    }
+
+    public int readInteger() throws IOException {
         int result = inputFile.readInt();
         return result;
     }
 
-    private String readString(int stringLength) throws IOException {
+    public String readString(int stringLength) throws IOException {
         byte[] stringBytes = null;
 
         if (stringLength <= 0) {

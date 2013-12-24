@@ -1,12 +1,10 @@
 package ru.fizteh.fivt.students.inaumov.storeable;
 
 import ru.fizteh.fivt.storage.structured.*;
+import ru.fizteh.fivt.students.inaumov.filemap.handlers.ReadHandler;
 import ru.fizteh.fivt.students.inaumov.shell.base.Shell;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
@@ -109,7 +107,7 @@ public class StoreableUtils {
         return formattedColumnTypes;
     }
 
-    public static void writeSignature(File signatureFile, List<Class<?>> columnTypes) throws IOException {
+    public static void writeTypesSignature(File signatureFile, List<Class<?>> columnTypes) throws IOException {
         File parent = signatureFile.getParentFile();
         if (!parent.exists()) {
             parent.mkdir();
@@ -122,5 +120,29 @@ public class StoreableUtils {
         String signature = StoreableUtils.valuesTypeNamesToString(formattedColumnTypes, true, " ");
         writer.write(signature);
         writer.close();
+    }
+
+    public static void writeSizeSignature(File signatureFile, int size) throws IOException {
+        File parent = signatureFile.getParentFile();
+        if (!parent.exists()) {
+            parent.mkdir();
+        }
+
+        signatureFile.createNewFile();
+        RandomAccessFile writer = new RandomAccessFile(signatureFile.getAbsolutePath(), "rw");
+        writer.writeInt(size);
+        writer.close();
+    }
+
+    public static int getSizeFromSizeSignature(File signatureFile) throws IOException {
+        if (!signatureFile.exists()) {
+            return -1;
+        }
+
+        ReadHandler readHandler = new ReadHandler(signatureFile.getAbsolutePath());
+        int tableSize = readHandler.readInteger();
+        readHandler.close();
+
+        return tableSize;
     }
 }

@@ -20,6 +20,10 @@ public class MultiFileStringDatabaseTable extends StringDatabaseTable {
         LoadHandler.loadTable(new SimpleTableBuilder(this));
     }
 
+    protected void loadTableLazy(String key) throws IOException {
+        // empty
+    }
+
     private File getTableDir() {
         File tableDir = new File(getDir(), getName());
         if (!tableDir.exists()) {
