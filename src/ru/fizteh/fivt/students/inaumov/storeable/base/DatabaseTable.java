@@ -193,6 +193,7 @@ public class DatabaseTable extends AbstractDatabaseTable<String, Storeable> impl
         if (!tableDirectory.exists()) {
             tableDirectory.mkdir();
             writeTypesSignatureFile();
+            writeSizeSignatureFile(0);
         } else {
             File[] children = tableDirectory.listFiles();
             if (children == null || children.length == 0) {
