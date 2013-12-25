@@ -180,12 +180,16 @@ public class StoreableUtils {
         return recordsNum;
     }
 
-    public static void changeFileData(DatabaseTable table, HashMap<String, String> mapFile) {
+    public static void changeFileData(DatabaseTable table, Set<String> keysToSave, HashMap<String, String> mapFile) {
         Storeable newValue;
 
-        for (final String key : table.diff.get().lazyHashMap.keyValueModifiedHashMap.keySet()) {
+        for (final String key : keysToSave) {
             newValue = table.diff.get().lazyHashMap.keyValueModifiedHashMap.get(key);
-            String newValueString = table.tableProvider.serialize(table, newValue);
+
+            String newValueString = null;
+            if (newValue != null) {
+                newValueString = table.tableProvider.serialize(table, newValue);
+            }
 
             if (mapFile.containsKey(key)) {
                 if (!isEqual(newValueString, mapFile.get(key))) {
@@ -238,6 +242,7 @@ public class StoreableUtils {
 
             if (bucketIsEmpty) {
                 MultiFileMapUtils.deleteFile(bucketDirectory);
+                continue;
             }
 
             for (int fileN = 0; fileN < SaveHandler.TABLES_IN_ONE_DIR; ++fileN) {
@@ -255,7 +260,7 @@ public class StoreableUtils {
 
                 if (!keysToSave.get(fileN).isEmpty()) {
                     HashMap<String, String> mapFile = ReadHandler.loadFileIntoMap(file.getAbsolutePath());
-                    changeFileData(builder.table, mapFile);
+                    changeFileData(builder.table, keysToSave.get(fileN), mapFile);
                     WriteHandler.saveToFileFromHashMap(file.getAbsolutePath(), mapFile);
                 }
             }
