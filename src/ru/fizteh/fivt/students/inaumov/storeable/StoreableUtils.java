@@ -195,6 +195,8 @@ public class StoreableUtils {
                         mapFile.put(key, newValueString);
                     }
                 }
+            } else {
+                mapFile.put(key, newValueString);
             }
         }
     }
