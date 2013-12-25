@@ -1,13 +1,14 @@
 package ru.fizteh.fivt.students.inaumov.filemap.handlers;
 
 import java.io.*;
+import java.util.HashMap;
 
 import ru.fizteh.fivt.storage.structured.Table;
 import ru.fizteh.fivt.students.inaumov.filemap.base.AbstractDatabaseTable;
 import ru.fizteh.fivt.students.inaumov.filemap.builders.TableBuilder;
 
 public class ReadHandler implements Closeable {
-    private RandomAccessFile inputFile = null;
+    public RandomAccessFile inputFile = null;
     private String fileName = null;
 
     public ReadHandler(String fileName) throws IOException {
@@ -42,6 +43,29 @@ public class ReadHandler implements Closeable {
         }
 
         reader.close();
+    }
+
+    public static HashMap<String, String> loadFileIntoMap(String filePath) throws IOException {
+        HashMap<String, String> mapFile = new HashMap<String, String>();
+
+        File file = new File(filePath);
+        if (!file.exists()) {
+            return mapFile;
+        }
+
+        ReadHandler reader = new ReadHandler(filePath);
+
+        while (!reader.readEnd()) {
+            int keyLength = reader.readInteger();
+            int valueLength = reader.readInteger();
+
+            String key = reader.readString(keyLength);
+            String value = reader.readString(valueLength);
+
+            mapFile.put(key, value);
+        }
+
+        return mapFile;
     }
 
     public static int getRecordsNumberFromFile(String filePath) throws IOException {

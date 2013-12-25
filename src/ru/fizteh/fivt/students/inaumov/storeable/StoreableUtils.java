@@ -1,14 +1,21 @@
 package ru.fizteh.fivt.students.inaumov.storeable;
 
 import ru.fizteh.fivt.storage.structured.*;
+import ru.fizteh.fivt.students.inaumov.filemap.base.AbstractDatabaseTable;
+import ru.fizteh.fivt.students.inaumov.filemap.builders.TableBuilder;
 import ru.fizteh.fivt.students.inaumov.filemap.handlers.ReadHandler;
+import ru.fizteh.fivt.students.inaumov.filemap.handlers.WriteHandler;
+import ru.fizteh.fivt.students.inaumov.multifilemap.MultiFileMapUtils;
+import ru.fizteh.fivt.students.inaumov.multifilemap.handlers.SaveHandler;
 import ru.fizteh.fivt.students.inaumov.shell.base.Shell;
+import ru.fizteh.fivt.students.inaumov.storeable.base.DatabaseTable;
+import ru.fizteh.fivt.students.inaumov.storeable.builders.StoreableTableBuilder;
 
 import java.io.*;
 import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Scanner;
+import java.util.*;
+
+import static ru.fizteh.fivt.students.inaumov.filemap.FileMapUtils.isEqual;
 
 public class StoreableUtils {
     public static List<Object> parseValues(List<String> valuesTypeNames, Table table) throws ColumnFormatException {
@@ -171,5 +178,85 @@ public class StoreableUtils {
         }
 
         return recordsNum;
+    }
+
+    public static void changeFileData(DatabaseTable table, HashMap<String, String> mapFile) {
+        Storeable newValue;
+
+        for (final String key : table.diff.get().lazyHashMap.keyValueModifiedHashMap.keySet()) {
+            newValue = table.diff.get().lazyHashMap.keyValueModifiedHashMap.get(key);
+            String newValueString = table.tableProvider.serialize(table, newValue);
+
+            if (mapFile.containsKey(key)) {
+                if (!isEqual(newValueString, mapFile.get(key))) {
+                    if (table.diff.get().lazyHashMap.keyValueModifiedHashMap.get(key) == null) {
+                        mapFile.remove(key);
+                    } else {
+                        mapFile.put(key, newValueString);
+                    }
+                }
+            }
+        }
+    }
+
+    public static void saveDatabaseTableAfterCommit(StoreableTableBuilder builder) throws IOException {
+        File tableDir = builder.getTableDir();
+        ArrayList<Set<String>> keysToSave = new ArrayList<Set<String>>();
+        boolean bucketIsEmpty;
+
+        for (int bucketNumber = 0; bucketNumber < SaveHandler.BUCKET_NUM; ++bucketNumber) {
+            keysToSave.clear();
+            for (int i = 0; i < SaveHandler.TABLES_IN_ONE_DIR; ++i) {
+                keysToSave.add(new HashSet<String>());
+            }
+            bucketIsEmpty = true;
+
+            for (final String key: builder.getKeys()) {
+                if (MultiFileMapUtils.getDirNumber(key) == bucketNumber) {
+                    int fileNumber = MultiFileMapUtils.getFileNumber(key);
+                    keysToSave.get(fileNumber).add(key);
+                    bucketIsEmpty = false;
+                }
+            }
+
+            String bucketName = bucketNumber + ".dir";
+            File bucketDirectory = new File(tableDir, bucketName);
+
+            if (bucketDirectory.exists()) {
+                for (final File fileEntry : bucketDirectory.listFiles()) {
+                    if (fileEntry.isDirectory()) {
+                        continue;
+                    }
+                    if (fileEntry.length() > 0) {
+                        bucketIsEmpty = false;
+                        break;
+                    }
+                }
+            }
+
+            if (bucketIsEmpty) {
+                MultiFileMapUtils.deleteFile(bucketDirectory);
+            }
+
+            for (int fileN = 0; fileN < SaveHandler.TABLES_IN_ONE_DIR; ++fileN) {
+                String fileName = fileN + ".dat";
+                File file = new File(bucketDirectory, fileName);
+
+                if (keysToSave.get(fileN).isEmpty() && (!file.exists() || file.length() == 0)) {
+                    MultiFileMapUtils.deleteFile(file);
+                    continue;
+                }
+
+                if (!bucketDirectory.exists()) {
+                    bucketDirectory.mkdir();
+                }
+
+                if (!keysToSave.get(fileN).isEmpty()) {
+                    HashMap<String, String> mapFile = ReadHandler.loadFileIntoMap(file.getAbsolutePath());
+                    changeFileData(builder.table, mapFile);
+                    WriteHandler.saveToFileFromHashMap(file.getAbsolutePath(), mapFile);
+                }
+            }
+        }
     }
 }

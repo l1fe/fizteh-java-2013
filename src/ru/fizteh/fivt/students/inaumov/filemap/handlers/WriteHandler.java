@@ -4,6 +4,7 @@ import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.util.HashMap;
 import java.util.Set;
 
 import ru.fizteh.fivt.students.inaumov.filemap.base.AbstractDatabaseTable;
@@ -34,6 +35,16 @@ public class WriteHandler implements Closeable {
         } catch (IOException e) {
             //
         }
+    }
+
+    public static void saveToFileFromHashMap(String filePath, HashMap<String, String> mapToSave) throws IOException {
+        WriteHandler writer = new WriteHandler(filePath);
+
+        for (final String key : mapToSave.keySet()) {
+            writer.writeEntry(key, mapToSave.get(key));
+        }
+
+        writer.close();
     }
 
     public void writeEntry(String key, String value) throws IOException {

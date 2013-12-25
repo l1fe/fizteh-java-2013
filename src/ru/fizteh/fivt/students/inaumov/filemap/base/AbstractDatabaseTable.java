@@ -19,12 +19,12 @@ public abstract class AbstractDatabaseTable<Key, Value> implements AutoCloseable
 
     public int size = 0;
 
-    private class LazyHashMap {
-        private HashMap<Key, Value> keyValueModifiedWeakHashMap = new HashMap<Key, Value>();
+    public class LazyHashMap {
+        public HashMap<Key, Value> keyValueModifiedHashMap = new HashMap<Key, Value>();
 
         Value lazyGet(Key key) throws IOException {
-            if (keyValueModifiedWeakHashMap.containsKey(key)) {
-                return keyValueModifiedWeakHashMap.get(key);
+            if (keyValueModifiedHashMap.containsKey(key)) {
+                return keyValueModifiedHashMap.get(key);
             }
 
             if (keyValueHashMap.containsKey(key)) {
@@ -37,12 +37,12 @@ public abstract class AbstractDatabaseTable<Key, Value> implements AutoCloseable
         }
 
         HashMap<Key,Value> getTable() {
-            return keyValueModifiedWeakHashMap;
+            return keyValueModifiedHashMap;
         }
     }
 
-    protected class Diff {
-        private LazyHashMap lazyHashMap = new LazyHashMap();
+    public class Diff {
+        public LazyHashMap lazyHashMap = new LazyHashMap();
 
         private int unsavedChangesNumber = 0;
 
@@ -239,14 +239,15 @@ public abstract class AbstractDatabaseTable<Key, Value> implements AutoCloseable
         try {
             transactionLock.lock();
             size += diff.get().getSize();
-            int committedChangesNumber = diff.get().commitChanges();
-            diff.get().clear();
 
             try {
                 saveTable();
             } catch (IOException e) {
                 System.err.println("error: can't save table: " + e.getMessage());
             }
+
+            int committedChangesNumber = diff.get().commitChanges();
+            diff.get().clear();
 
             return committedChangesNumber;
         } finally {

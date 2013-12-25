@@ -6,7 +6,6 @@ import ru.fizteh.fivt.storage.structured.Table;
 import ru.fizteh.fivt.students.inaumov.filemap.base.AbstractDatabaseTable;
 import ru.fizteh.fivt.students.inaumov.filemap.handlers.ReadHandler;
 import ru.fizteh.fivt.students.inaumov.multifilemap.MultiFileMapUtils;
-import ru.fizteh.fivt.students.inaumov.multifilemap.handlers.LoadHandler;
 import ru.fizteh.fivt.students.inaumov.multifilemap.handlers.SaveHandler;
 import ru.fizteh.fivt.students.inaumov.storeable.StoreableUtils;
 import ru.fizteh.fivt.students.inaumov.storeable.builders.StoreableTableBuilder;
@@ -14,14 +13,15 @@ import ru.fizteh.fivt.students.inaumov.storeable.builders.StoreableTableBuilder;
 import java.io.File;
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 
+import static ru.fizteh.fivt.students.inaumov.filemap.FileMapUtils.isEqual;
 import static ru.fizteh.fivt.students.inaumov.storeable.StoreableUtils.isStringIncorrect;
-import static ru.fizteh.fivt.students.inaumov.storeable.StoreableUtils.writeSizeSignature;
 
 public class DatabaseTable extends AbstractDatabaseTable<String, Storeable> implements Table {
-    private DatabaseTableProvider tableProvider;
+    public DatabaseTableProvider tableProvider;
     private List<Class<?>> columnTypes;
 
     public DatabaseTable(DatabaseTableProvider tableProvider, String databaseDirectory, String tableName,
@@ -185,7 +185,8 @@ public class DatabaseTable extends AbstractDatabaseTable<String, Storeable> impl
 
     @Override
     public void saveTable() throws IOException {
-        SaveHandler.saveTable(new StoreableTableBuilder(tableProvider, this));
+        //SaveHandler.saveTable(new StoreableTableBuilder(tableProvider, this));
+        StoreableUtils.saveDatabaseTableAfterCommit(new StoreableTableBuilder(tableProvider, this));
     }
 
     private void checkTableDir() throws IOException {
@@ -193,7 +194,7 @@ public class DatabaseTable extends AbstractDatabaseTable<String, Storeable> impl
         if (!tableDirectory.exists()) {
             tableDirectory.mkdir();
             writeTypesSignatureFile();
-            writeSizeSignatureFile(0);
+            writeSizeSignatureFile(tableSize());
         } else {
             File[] children = tableDirectory.listFiles();
             if (children == null || children.length == 0) {
@@ -251,6 +252,10 @@ public class DatabaseTable extends AbstractDatabaseTable<String, Storeable> impl
 
     public Set<String> rawGetKeys() {
         return keyValueHashMap.keySet();
+    }
+
+    public Set<String> getKeysToCommit() {
+        return diff.get().lazyHashMap.keyValueModifiedHashMap.keySet();
     }
 
     public String getTableDir() {

@@ -12,8 +12,8 @@ import java.text.ParseException;
 import java.util.Set;
 
 public class StoreableTableBuilder implements TableBuilder {
-    DatabaseTableProvider tableProvider;
-    DatabaseTable table;
+    public DatabaseTableProvider tableProvider;
+    public DatabaseTable table;
 
     private int currentBucket;
     private int currentFile;
@@ -52,7 +52,9 @@ public class StoreableTableBuilder implements TableBuilder {
 
     @Override
     public Set<String> getKeys() {
-        return table.rawGetKeys();
+        //return table.rawGetKeys();
+
+        return table.getKeysToCommit();
     }
 
     @Override
